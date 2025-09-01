@@ -28,7 +28,7 @@ Transform software development through AI-powered automation, where complex deve
 
 ### Backend
 - **Next.js API Routes** for serverless functions
-- **Prisma ORM** with SQLite (MVP) → PostgreSQL (production)
+- **Prisma ORM** with PostgreSQL database
 - **NextAuth.js** for authentication
 - **Anthropic SDK** for AI integration
 
@@ -61,11 +61,11 @@ Transform software development through AI-powered automation, where complex deve
 
 3. **Start with Docker (Recommended)**
    ```bash
-   # Run the automated setup script
-   ./docker/scripts/dev-setup.sh
+   # Start development environment
+   docker compose -f docker-compose.dev.yml up -d
    
-   # Or manually
-   docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+   # Or use the Makefile
+   make dev
    ```
 
 4. **Start without Docker**
@@ -82,14 +82,17 @@ Create a `.env.local` file with:
 
 ```env
 # Database
-DATABASE_URL="file:./dev.db"
+DATABASE_URL="postgresql://octodev:octodev_password@oc_database:5432/octocode_dev?schema=public"
 
 # Authentication
-NEXTAUTH_URL="http://localhost:3000"
-NEXTAUTH_SECRET="your-secret-key"
+NEXTAUTH_URL="http://localhost:3002"
+NEXTAUTH_SECRET="development-secret-key-change-in-production"
 
 # AI Integration
 ANTHROPIC_API_KEY="your-anthropic-api-key"
+
+# Redis
+REDIS_URL="redis://oc_redis:6379"
 ```
 
 ## 🏗 Architecture
@@ -143,22 +146,22 @@ The project includes a complete Docker development environment:
 
 ```bash
 # Start all services
-docker-compose up -d
+docker compose -f docker-compose.dev.yml up -d
 
 # View logs
-docker-compose logs -f oc_app
+docker compose -f docker-compose.dev.yml logs -f oc_app
 
 # Access application container
-docker exec -it oc_app bash
+docker exec -it oc_app_dev bash
 
-# Reset environment
-./docker/scripts/dev-reset.sh
+# Stop services
+docker compose -f docker-compose.dev.yml down
 ```
 
 ### Container Services
-- **oc_app** - Next.js application (port 3000)
-- **oc_database** - PostgreSQL database (port 5432)
-- **oc_redis** - Redis for caching (port 6379)
+- **oc_app_dev** - Next.js application (port 3002)
+- **oc_database_dev** - PostgreSQL database (port 5435)
+- **oc_redis_dev** - Redis for caching (port 6380)
 
 ## 📊 Development Commands
 

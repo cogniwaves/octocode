@@ -169,3 +169,23 @@ The project is designed with a clear migration path:
 - Add to memory: THe design system should be developped and maintained by material-design-3-specialist. It is responsible for all UI related decision
 - Add to memory: Always use the debugging expert to debug th application
 - Add to memory: All planning tasks for new feature should be handed to the feature-planner.
+
+## Docker Access URLs
+
+### Development Environment
+- **Application**: http://localhost:3002 (mapped from container port 3000)
+- **Socket.IO**: http://localhost:3003 (mapped from container port 3001)  
+- **PostgreSQL**: localhost:5435 (direct database access)
+- **Redis**: localhost:6380 (direct cache access)
+
+### Container Status Commands
+```bash
+# Check running containers
+docker compose -f docker-compose.dev.yml ps
+
+# View resource usage
+docker stats
+
+# Health check status
+docker inspect oc_app_dev --format='{{.State.Health.Status}}'
+```
