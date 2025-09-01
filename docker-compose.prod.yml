@@ -1,81 +1,396 @@
-# Production-specific Docker Compose configuration
-# Use with: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up
-
+# Production Docker Compose Configuration
+# Optimized for performance, security, and scalability
 version: '3.8'
 
 services:
+  # Production PostgreSQL with high availability configuration
+  oc_database:
+    image: postgres:16-alpine
+    container_name: oc_database_prod
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-octocode}
+      POSTGRES_USER: ${POSTGRES_USER:-octocode}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=en_US.UTF-8 --lc-ctype=en_US.UTF-8"
+      # Production optimizations
+      POSTGRES_SHARED_PRELOAD_LIBRARIES: "pg_stat_statements"
+      POSTGRES_MAX_CONNECTIONS: "${POSTGRES_MAX_CONNECTIONS:-200}"
+      POSTGRES_SHARED_BUFFERS: "${POSTGRES_SHARED_BUFFERS:-256MB}"
+      POSTGRES_EFFECTIVE_CACHE_SIZE: "${POSTGRES_EFFECTIVE_CACHE_SIZE:-1GB}"
+      POSTGRES_MAINTENANCE_WORK_MEM: "${POSTGRES_MAINTENANCE_WORK_MEM:-64MB}"
+      POSTGRES_CHECKPOINT_COMPLETION_TARGET: "0.9"
+      POSTGRES_WAL_BUFFERS: "16MB"
+      POSTGRES_DEFAULT_STATISTICS_TARGET: "100"
+    volumes:
+      - oc_postgres_data_prod:/var/lib/postgresql/data
+      - ./docker/prod/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./docker/prod/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+      - oc_postgres_backup_prod:/backup
+    networks:
+      - oc_network_prod
+    secrets:
+      - postgres_password
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    # Production: Strict resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+        reservations:
+          memory: 1G
+          cpus: '0.5'
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+    # Production: Security hardening
+    security_opt:
+      - no-new-privileges:true
+    read_only: false
+    tmpfs:
+      - /tmp
+      - /var/run/postgresql
+
+  # Production Redis cluster node
+  oc_redis:
+    image: redis:7-alpine
+    container_name: oc_redis_prod
+    restart: always
+    volumes:
+      - oc_redis_data_prod:/data
+      - ./docker/prod/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    networks:
+      - oc_network_prod
+    command: >
+      sh -c "
+        echo 'requirepass ${REDIS_PASSWORD}' >> /usr/local/etc/redis/redis.conf &&
+        redis-server /usr/local/etc/redis/redis.conf
+      "
+    environment:
+      - REDIS_PASSWORD_FILE=/run/secrets/redis_password
+    secrets:
+      - redis_password
+    healthcheck:
+      test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "$REDIS_PASSWORD", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    # Production: Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.2'
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+
+  # Load balancer / Reverse proxy
+  oc_nginx:
+    image: nginx:alpine
+    container_name: oc_nginx_prod
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/prod/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/prod/ssl:/etc/ssl:ro
+      - oc_nginx_cache_prod:/var/cache/nginx
+      - oc_nginx_logs_prod:/var/log/nginx
+    networks:
+      - oc_network_prod
+      - oc_network_public
+    depends_on:
+      oc_app:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    # Production: Security and performance
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.3'
+        reservations:
+          memory: 128M
+          cpus: '0.1'
+    security_opt:
+      - no-new-privileges:true
+
+  # Primary application instance
   oc_app:
     build:
       context: .
       dockerfile: Dockerfile
       target: production
+      args:
+        - BUILDKIT_INLINE_CACHE=1
+    container_name: oc_app_prod
+    restart: always
     environment:
       - NODE_ENV=production
-    # Remove development ports and volumes
-    ports:
-      - "3000:3000"
-    volumes: []
-    restart: always
+      - DATABASE_URL_FILE=/run/secrets/database_url
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-https://octocode.app}
+      - NEXTAUTH_SECRET_FILE=/run/secrets/nextauth_secret
+      - SOCKET_IO_PORT=3001
+      - REDIS_URL_FILE=/run/secrets/redis_url
+      # Production: Performance optimizations
+      - NODE_OPTIONS=--max-old-space-size=1024
+      - NEXT_TELEMETRY_DISABLED=1
+      # Monitoring and observability
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_ENDPOINT:-http://oc_observability:4317}
+      - OTEL_SERVICE_NAME=octocode-app
+      - OTEL_SERVICE_VERSION=${APP_VERSION:-1.0.0}
+    volumes:
+      # Production: Minimal volume mounts
+      - oc_app_uploads_prod:/app/uploads
+      - oc_app_logs_prod:/app/logs
+    networks:
+      - oc_network_prod
+    secrets:
+      - database_url
+      - nextauth_secret
+      - redis_url
+      - anthropic_api_key
+    depends_on:
+      oc_database:
+        condition: service_healthy
+      oc_redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 15s
+      retries: 3
+      start_period: 60s
+    # Production: Strict resource limits and security
     deploy:
       replicas: 2
       resources:
         limits:
-          cpus: '1'
-          memory: 1G
-        reservations:
-          cpus: '0.5'
-          memory: 512M
-
-  oc_database:
-    environment:
-      - POSTGRES_DB=octocode_prod
-      - POSTGRES_USER=octocode_user
-      # Use Docker secrets in production
-      - POSTGRES_PASSWORD_FILE=/run/secrets/db_password
-    secrets:
-      - db_password
-    # Remove development port exposure
-    ports: []
-    restart: always
-    deploy:
-      resources:
-        limits:
-          cpus: '2'
           memory: 2G
+          cpus: '1.0'
         reservations:
-          cpus: '1'
-          memory: 1G
-    # Production PostgreSQL configuration
-    command: >
-      postgres
-      -c max_connections=200
-      -c shared_buffers=256MB
-      -c effective_cache_size=1GB
-      -c maintenance_work_mem=64MB
-      -c checkpoint_completion_target=0.9
-      -c wal_buffers=16MB
-      -c default_statistics_target=100
-      -c random_page_cost=1.1
-      -c effective_io_concurrency=200
+          memory: 512M
+          cpus: '0.5'
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+      update_config:
+        parallelism: 1
+        delay: 30s
+        failure_action: rollback
+        order: start-first
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/cache
 
-  oc_redis:
+  # Background job worker
+  oc_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: oc_worker_prod
     restart: always
-    ports: []
+    environment:
+      - NODE_ENV=production
+      - WORKER_MODE=true
+      - DATABASE_URL_FILE=/run/secrets/database_url
+      - REDIS_URL_FILE=/run/secrets/redis_url
+      - ANTHROPIC_API_KEY_FILE=/run/secrets/anthropic_api_key
+    networks:
+      - oc_network_prod
+    secrets:
+      - database_url
+      - redis_url
+      - anthropic_api_key
+    depends_on:
+      oc_database:
+        condition: service_healthy
+      oc_redis:
+        condition: service_healthy
+    command: ["node", "worker.js"]
+    # Production: Worker-specific resource limits
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.2'
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+
+  # Database backup service
+  oc_backup:
+    image: postgres:16-alpine
+    container_name: oc_backup_prod
+    restart: unless-stopped
+    environment:
+      - POSTGRES_HOST=oc_database
+      - POSTGRES_DB=${POSTGRES_DB:-octocode}
+      - POSTGRES_USER=${POSTGRES_USER:-octocode}
+      - PGPASSWORD_FILE=/run/secrets/postgres_password
+      - BACKUP_SCHEDULE=${BACKUP_SCHEDULE:-0 2 * * *}
+      - BACKUP_RETENTION_DAYS=${BACKUP_RETENTION_DAYS:-30}
+      - S3_BUCKET=${BACKUP_S3_BUCKET:-}
+      - AWS_ACCESS_KEY_ID_FILE=/run/secrets/aws_access_key
+      - AWS_SECRET_ACCESS_KEY_FILE=/run/secrets/aws_secret_key
+    volumes:
+      - oc_postgres_backup_prod:/backup
+      - ./docker/prod/backup-scripts:/scripts:ro
+    networks:
+      - oc_network_prod
+    secrets:
+      - postgres_password
+      - aws_access_key
+      - aws_secret_key
+    depends_on:
+      - oc_database
+    command: ["/scripts/backup.sh"]
+    # Production: Backup resource limits
     deploy:
       resources:
         limits:
-          cpus: '0.5'
-          memory: 512M
-        reservations:
-          cpus: '0.25'
           memory: 256M
+          cpus: '0.2'
+        reservations:
+          memory: 64M
+          cpus: '0.1'
 
+  # Observability stack (Prometheus, Grafana, etc.)
+  oc_observability:
+    image: prom/prometheus:latest
+    container_name: oc_observability_prod
+    restart: always
+    ports:
+      - "9090:9090"  # Prometheus
+    volumes:
+      - ./docker/prod/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - oc_prometheus_data_prod:/prometheus
+    networks:
+      - oc_network_prod
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=90d'
+      - '--web.enable-lifecycle'
+    # Production: Monitoring resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.3'
+        reservations:
+          memory: 256M
+          cpus: '0.1'
+
+# Production secrets management
 secrets:
-  db_password:
-    external: true
+  postgres_password:
+    file: ./secrets/postgres_password.txt
+  database_url:
+    file: ./secrets/database_url.txt
+  nextauth_secret:
+    file: ./secrets/nextauth_secret.txt
+  redis_password:
+    file: ./secrets/redis_password.txt
+  redis_url:
+    file: ./secrets/redis_url.txt
+  anthropic_api_key:
+    file: ./secrets/anthropic_api_key.txt
+  aws_access_key:
+    file: ./secrets/aws_access_key.txt
+  aws_secret_key:
+    file: ./secrets/aws_secret_key.txt
 
+# Production volumes with backup strategies
 volumes:
-  oc_postgres_data:
+  oc_postgres_data_prod:
     driver: local
-  oc_redis_data:
+    name: oc_postgres_data_prod
+    driver_opts:
+      type: none
+      device: /opt/octocode/data/postgres
+      o: bind
+  oc_postgres_backup_prod:
     driver: local
+    name: oc_postgres_backup_prod
+    driver_opts:
+      type: none
+      device: /opt/octocode/backup/postgres
+      o: bind
+  oc_redis_data_prod:
+    driver: local
+    name: oc_redis_data_prod
+    driver_opts:
+      type: none
+      device: /opt/octocode/data/redis
+      o: bind
+  oc_nginx_cache_prod:
+    driver: local
+    name: oc_nginx_cache_prod
+  oc_nginx_logs_prod:
+    driver: local
+    name: oc_nginx_logs_prod
+  oc_app_uploads_prod:
+    driver: local
+    name: oc_app_uploads_prod
+  oc_app_logs_prod:
+    driver: local
+    name: oc_app_logs_prod
+  oc_prometheus_data_prod:
+    driver: local
+    name: oc_prometheus_data_prod
+
+# Production networks with security controls
+networks:
+  oc_network_prod:
+    driver: bridge
+    name: oc_network_prod
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16
+    driver_opts:
+      com.docker.network.bridge.name: oc_bridge_prod
+      com.docker.network.bridge.enable_icc: "true"
+      com.docker.network.bridge.enable_ip_masquerade: "true"
+  oc_network_public:
+    driver: bridge
+    name: oc_network_public
+    ipam:
+      config:
+        - subnet: 172.22.0.0/16

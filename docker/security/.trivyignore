@@ -1,0 +1,14 @@
+# Trivy ignore file for OctoCode project
+# Add vulnerability IDs to ignore (with justification)
+
+# Development dependencies - not present in production
+# CVE-XXXX-XXXX  # Development only package
+
+# Accepted risks with mitigation in place
+# CVE-XXXX-XXXX  # Risk accepted - mitigated by network isolation
+
+# False positives
+# CVE-XXXX-XXXX  # False positive - not applicable to our use case
+
+# Temporary ignores (with expiry dates and tracking issues)
+# CVE-XXXX-XXXX  # TODO: Fix by 2024-12-31 - Issue #123

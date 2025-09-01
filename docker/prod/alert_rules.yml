@@ -1,0 +1,248 @@
+# Prometheus alert rules for OctoCode production monitoring
+groups:
+  - name: octocode_application
+    rules:
+      # Application Health Alerts
+      - alert: ApplicationDown
+        expr: up{job="octocode-app"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: application
+        annotations:
+          summary: "OctoCode application is down"
+          description: "OctoCode application has been down for more than 1 minute."
+
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+          service: application
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value }} errors per second over the last 5 minutes."
+
+      - alert: SlowResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 2
+        for: 3m
+        labels:
+          severity: warning
+          service: application
+        annotations:
+          summary: "Slow response times detected"
+          description: "95th percentile response time is {{ $value }}s over the last 5 minutes."
+
+      # Task Processing Alerts
+      - alert: TaskProcessingStalled
+        expr: rate(tasks_completed_total[5m]) == 0 and tasks_pending_total > 0
+        for: 5m
+        labels:
+          severity: warning
+          service: task_processor
+        annotations:
+          summary: "Task processing appears stalled"
+          description: "No tasks have been completed in 5 minutes but {{ $value }} tasks are pending."
+
+      - alert: HighTaskFailureRate
+        expr: rate(tasks_failed_total[10m]) / rate(tasks_total[10m]) > 0.2
+        for: 5m
+        labels:
+          severity: warning
+          service: task_processor
+        annotations:
+          summary: "High task failure rate"
+          description: "Task failure rate is {{ $value | humanizePercentage }} over the last 10 minutes."
+
+  - name: octocode_infrastructure
+    rules:
+      # Database Alerts
+      - alert: DatabaseDown
+        expr: up{job="postgresql"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: database
+        annotations:
+          summary: "PostgreSQL database is down"
+          description: "PostgreSQL database has been down for more than 1 minute."
+
+      - alert: DatabaseHighConnections
+        expr: (pg_stat_database_numbackends / pg_settings_max_connections) * 100 > 80
+        for: 3m
+        labels:
+          severity: warning
+          service: database
+        annotations:
+          summary: "High database connection usage"
+          description: "Database connection usage is {{ $value }}% of maximum connections."
+
+      - alert: DatabaseSlowQueries
+        expr: rate(pg_stat_statements_mean_time[5m]) > 1000
+        for: 5m
+        labels:
+          severity: warning
+          service: database
+        annotations:
+          summary: "Slow database queries detected"
+          description: "Average query time is {{ $value }}ms over the last 5 minutes."
+
+      # Redis Alerts
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: redis
+        annotations:
+          summary: "Redis is down"
+          description: "Redis has been down for more than 1 minute."
+
+      - alert: RedisHighMemoryUsage
+        expr: (redis_memory_used_bytes / redis_memory_max_bytes) * 100 > 90
+        for: 3m
+        labels:
+          severity: warning
+          service: redis
+        annotations:
+          summary: "High Redis memory usage"
+          description: "Redis memory usage is {{ $value }}% of maximum memory."
+
+      - alert: RedisSlowOperations
+        expr: rate(redis_commands_duration_seconds_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: redis
+        annotations:
+          summary: "Slow Redis operations"
+          description: "Redis operations are taking {{ $value }}s on average."
+
+  - name: octocode_system
+    rules:
+      # System Resource Alerts
+      - alert: HighCPUUsage
+        expr: (100 - (avg(irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)) > 85
+        for: 5m
+        labels:
+          severity: warning
+          service: system
+        annotations:
+          summary: "High CPU usage"
+          description: "CPU usage is {{ $value }}% over the last 5 minutes."
+
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 90
+        for: 3m
+        labels:
+          severity: critical
+          service: system
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage is {{ $value }}% of total memory."
+
+      - alert: DiskSpaceLow
+        expr: (1 - (node_filesystem_avail_bytes / node_filesystem_size_bytes)) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          service: system
+        annotations:
+          summary: "Low disk space"
+          description: "Disk usage is {{ $value }}% on {{ $labels.mountpoint }}."
+
+      - alert: DiskSpaceCritical
+        expr: (1 - (node_filesystem_avail_bytes / node_filesystem_size_bytes)) * 100 > 95
+        for: 1m
+        labels:
+          severity: critical
+          service: system
+        annotations:
+          summary: "Critical disk space"
+          description: "Disk usage is {{ $value }}% on {{ $labels.mountpoint }}."
+
+  - name: octocode_containers
+    rules:
+      # Container Health Alerts
+      - alert: ContainerDown
+        expr: absent(container_last_seen{name=~"oc_.+"})
+        for: 1m
+        labels:
+          severity: critical
+          service: container
+        annotations:
+          summary: "Container is down"
+          description: "Container {{ $labels.name }} is not running."
+
+      - alert: ContainerHighCPU
+        expr: rate(container_cpu_usage_seconds_total{name=~"oc_.+"}[5m]) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+          service: container
+        annotations:
+          summary: "High container CPU usage"
+          description: "Container {{ $labels.name }} CPU usage is {{ $value }}%."
+
+      - alert: ContainerHighMemory
+        expr: (container_memory_usage_bytes{name=~"oc_.+"} / container_spec_memory_limit_bytes) * 100 > 90
+        for: 3m
+        labels:
+          severity: warning
+          service: container
+        annotations:
+          summary: "High container memory usage"
+          description: "Container {{ $labels.name }} memory usage is {{ $value }}% of limit."
+
+      - alert: ContainerRestarts
+        expr: rate(container_start_time_seconds{name=~"oc_.+"}[1h]) > 0
+        for: 0m
+        labels:
+          severity: warning
+          service: container
+        annotations:
+          summary: "Container restarting"
+          description: "Container {{ $labels.name }} has restarted {{ $value }} times in the last hour."
+
+  - name: octocode_agents
+    rules:
+      # AI Agent Specific Alerts
+      - alert: AgentExecutionFailures
+        expr: rate(agent_execution_failures_total[10m]) > 0.1
+        for: 3m
+        labels:
+          severity: warning
+          service: agents
+        annotations:
+          summary: "High agent execution failure rate"
+          description: "Agent execution failure rate is {{ $value }} failures per second."
+
+      - alert: AgentQueueBacklog
+        expr: agent_queue_depth > 100
+        for: 5m
+        labels:
+          severity: warning
+          service: agents
+        annotations:
+          summary: "Large agent queue backlog"
+          description: "Agent queue has {{ $value }} pending tasks."
+
+      - alert: AnthropicAPIErrors
+        expr: rate(anthropic_api_errors_total[5m]) > 0.05
+        for: 3m
+        labels:
+          severity: warning
+          service: anthropic_api
+        annotations:
+          summary: "High Anthropic API error rate"
+          description: "Anthropic API error rate is {{ $value }} errors per second."
+
+      - alert: AnthropicRateLimit
+        expr: anthropic_rate_limit_remaining < 10
+        for: 1m
+        labels:
+          severity: critical
+          service: anthropic_api
+        annotations:
+          summary: "Anthropic API rate limit approaching"
+          description: "Only {{ $value }} API calls remaining before rate limit."

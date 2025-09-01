@@ -1,0 +1,84 @@
+# Docker Compose security scanning and monitoring stack
+version: '3.8'
+
+services:
+  # Trivy security scanner service
+  trivy-scanner:
+    image: aquasec/trivy:latest
+    container_name: oc_trivy_scanner
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./docker/security/reports:/reports
+      - ./docker/security/.trivy-cache:/root/.cache/trivy
+      - .:/workspace:ro
+    working_dir: /workspace
+    networks:
+      - oc_security_network
+    environment:
+      - TRIVY_CACHE_DIR=/root/.cache/trivy
+      - TRIVY_DB_REPOSITORY=ghcr.io/aquasecurity/trivy-db
+    command: ["sh", "-c", "while true; do sleep 3600; done"]
+    restart: unless-stopped
+
+  # Docker Bench Security
+  docker-bench:
+    image: docker/docker-bench-security:latest
+    container_name: oc_docker_bench
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /usr/lib/systemd:/usr/lib/systemd:ro
+      - /etc:/etc:ro
+      - ./docker/security/reports:/reports
+    networks:
+      - oc_security_network
+    command: ["sh", "-c", "/docker-bench-security.sh -l /reports/docker-bench-$(date +%Y%m%d-%H%M%S).log"]
+    restart: "no"
+
+  # Falco security monitoring
+  falco:
+    image: falcosecurity/falco-no-driver:latest
+    container_name: oc_falco
+    privileged: true
+    volumes:
+      - /var/run/docker.sock:/host/var/run/docker.sock:ro
+      - /dev:/host/dev:ro
+      - /proc:/host/proc:ro
+      - /boot:/host/boot:ro
+      - /lib/modules:/host/lib/modules:ro
+      - /usr:/host/usr:ro
+      - /etc:/host/etc:ro
+      - ./docker/security/falco.yaml:/etc/falco/falco.yaml:ro
+      - ./docker/security/reports:/var/log/falco
+    networks:
+      - oc_security_network
+    environment:
+      - HOST_ROOT=/host
+    command: ["falco", "--userspace"]
+    restart: unless-stopped
+
+  # Security event aggregator
+  security-dashboard:
+    image: grafana/grafana:latest
+    container_name: oc_security_dashboard
+    ports:
+      - "3001:3000"
+    volumes:
+      - ./docker/security/grafana:/etc/grafana/provisioning
+      - oc_grafana_data:/var/lib/grafana
+    networks:
+      - oc_security_network
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SECURITY_SECRET_KEY=security-dashboard-secret
+    restart: unless-stopped
+
+networks:
+  oc_security_network:
+    driver: bridge
+    name: oc_security_network
+
+volumes:
+  oc_grafana_data:
+    driver: local
+    name: oc_grafana_security_data

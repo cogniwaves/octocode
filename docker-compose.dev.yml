@@ -1,64 +1,154 @@
-# Development-specific Docker Compose override
-# Use with: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
-
+# Development Docker Compose Configuration
+# Optimized for hot reload, debugging, and development workflow
 version: '3.8'
 
 services:
-  oc_app:
-    # Override for development with volume mounts for hot reload
-    volumes:
-      - .:/app
-      - /app/node_modules
-      - /app/.next
-      - oc_prisma_cache:/app/node_modules/.prisma
-    environment:
-      # Development-specific environment variables
-      - NODE_ENV=development
-      - CHOKIDAR_USEPOLLING=true
-      - WATCHPACK_POLLING=true
-    # Expose additional ports for debugging
-    ports:
-      - "3000:3000"
-      - "3001:3001"
-      - "9229:9229" # Node.js debugging port
-
+  # PostgreSQL database service for development
   oc_database:
-    # Development database configuration
+    image: postgres:16-alpine
+    container_name: oc_database_dev
+    restart: unless-stopped
     environment:
-      - POSTGRES_DB=octocode_dev
-      - POSTGRES_USER=octodev
-      - POSTGRES_PASSWORD=octodev_password
-    # Expose database port for external connections
+      POSTGRES_DB: octocode_dev
+      POSTGRES_USER: octodev
+      POSTGRES_PASSWORD: octodev_password
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+      # Development optimization
+      POSTGRES_SHARED_PRELOAD_LIBRARIES: ""
+      POSTGRES_MAX_CONNECTIONS: "100"
+      POSTGRES_SHARED_BUFFERS: "128MB"
+    volumes:
+      - oc_postgres_data_dev:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
-    # Enable query logging for development
-    command: >
-      postgres
-      -c log_statement=all
-      -c log_destination=stderr
-      -c log_min_messages=info
-      -c log_min_duration_statement=0
+      - "5435:5432"
+    networks:
+      - oc_network_dev
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U octodev -d octocode_dev"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    # Development: Resource limits for consistent performance
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.2'
 
-  # Development tools container (optional)
-  oc_devtools:
+  # Main Next.js application service for development
+  oc_app:
     build:
       context: .
       dockerfile: Dockerfile
       target: development
-    container_name: oc_devtools
+    container_name: oc_app_dev
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://octodev:octodev_password@oc_database:5432/octocode_dev?schema=public
+      - NEXTAUTH_URL=http://localhost:3000
+      - NEXTAUTH_SECRET=development-secret-key-change-in-production
+      - SOCKET_IO_PORT=3001
+      - POSTGRES_HOST=oc_database
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=octocode_dev
+      - POSTGRES_USER=octodev
+      - POSTGRES_PASSWORD=octodev_password
+      # Development: Enable debugging and hot reload optimizations
+      - NEXT_TELEMETRY_DISABLED=1
+      - WATCHPACK_POLLING=true
+      - CHOKIDAR_USEPOLLING=true
+      # Redis connection for development
+      - REDIS_URL=redis://oc_redis:6379
     volumes:
-      - .:/app
+      # Development: Source code mounting for hot reload with proper permissions
+      - .:/app:cached
+      # Anonymous volumes to prevent permission conflicts with host mount
+      - /app/node_modules
+      - /app/.next
+      # Development: Cache volumes with proper ownership
+      - oc_prisma_cache_dev:/home/octodev/.prisma
+      - oc_pnpm_cache_dev:/home/octodev/.pnpm
+    ports:
+      - "3002:3000"
+      - "3003:3001"
     networks:
-      - oc_network
-    profiles:
-      - tools
-    entrypoint: ["tail", "-f", "/dev/null"]  # Keep container running
-    
+      - oc_network_dev
+    depends_on:
+      oc_database:
+        condition: service_healthy
+      oc_redis:
+        condition: service_healthy
+    # Development: Simplified startup script without runtime install
+    command: >
+      sh -c "
+        echo '🚀 Starting OctoCode Development Environment...' &&
+        echo '🗄️  Generating Prisma client...' &&
+        pnpm db:generate &&
+        echo '🔄 Running database migrations...' &&
+        pnpm db:push &&
+        echo '✅ Database ready!' &&
+        echo '🌟 Starting development server with hot reload...' &&
+        pnpm dev
+      "
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    # Development: Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.3'
+
+  # Redis service for development caching and session storage
+  oc_redis:
+    image: redis:7-alpine
+    container_name: oc_redis_dev
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+    volumes:
+      - oc_redis_data_dev:/data
+    networks:
+      - oc_network_dev
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    # Development: Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.2'
+        reservations:
+          memory: 64M
+          cpus: '0.1'
+
+
+# Named volumes for development data persistence
 volumes:
-  # Development-specific volume configurations
-  oc_postgres_data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ./docker/volumes/postgres
+  oc_postgres_data_dev:
+  oc_redis_data_dev:
+  oc_prisma_cache_dev:
+  oc_nextjs_cache_dev:
+  oc_pnpm_cache_dev:
+
+# Custom network for development service communication
+networks:
+  oc_network_dev:
+    driver: bridge

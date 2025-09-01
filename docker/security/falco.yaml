@@ -1,0 +1,151 @@
+# Falco configuration for OctoCode container security monitoring
+# Reference: https://falco.org/docs/configuration/
+
+# Rules configuration
+rules_file:
+  - /etc/falco/falco_rules.yaml
+  - /etc/falco/falco_rules.local.yaml
+  - /etc/falco/k8s_audit_rules.yaml
+  - /etc/falco/rules.d
+
+# Time format for output
+time_format_iso_8601: true
+
+# JSON output for easier parsing
+json_output: true
+json_include_output_property: true
+json_include_tags_property: true
+
+# Log file settings
+file_output:
+  enabled: true
+  keep_alive: false
+  filename: /var/log/falco/events.json
+
+# Stdout output (also enabled for debugging)
+stdout_output:
+  enabled: true
+
+# Program output for custom processing
+program_output:
+  enabled: false
+  keep_alive: false
+  program: "jq '.text' >> /var/log/falco/alerts.log"
+
+# HTTP output for webhooks/alerting systems
+http_output:
+  enabled: false
+  url: ""
+  user_agent: "falcosecurity/falco"
+
+# gRPC output for integrations
+grpc_output:
+  enabled: false
+  address: "localhost:5060"
+  threadiness: 8
+
+# gRPC server settings
+grpc:
+  enabled: false
+  bind_address: "0.0.0.0:5060"
+  threadiness: 8
+
+# Webserver for health checks
+webserver:
+  enabled: true
+  listen_port: 8765
+  k8s_healthz_endpoint: /healthz
+  ssl_enabled: false
+  ssl_certificate: /etc/ssl/falco.pem
+
+# Syscall event filtering
+syscall_event_drops:
+  actions:
+    - log
+    - alert
+  rate: 0.03333
+  max_burst: 1000
+
+# Syscall buffering
+syscall_buf_size_preset: 4
+
+# Application-specific rules for OctoCode
+load_plugins: []
+
+# Plugins configuration
+plugins: []
+
+# Watch config file changes
+watch_config_files: true
+
+# Container runtime settings
+container_engines:
+  docker:
+    enabled: true
+    socket: /host/var/run/docker.sock
+
+# Modern BPF
+modern_bpf:
+  enabled: false
+
+# Metrics settings
+metrics:
+  enabled: true
+  interval: 15s
+  output_rule: true
+  output_file: /var/log/falco/metrics.txt
+
+# Base syscalls for monitoring
+base_syscalls:
+  custom_set: []
+  repair: false
+
+# Priority threshold for alerts (debug, info, notice, warning, error, critical, alert, emergency)
+priority: notice
+
+# Buffer size for syscall events
+syscall_buf_size_preset: 4
+
+# Enable/disable specific rule sets
+rules:
+  # Application security
+  - rule: Detect outbound connections to external IPs
+    enabled: true
+  - rule: Container with sensitive mount
+    enabled: true
+  - rule: Create files below container
+    enabled: true
+  - rule: Modify binary dirs
+    enabled: true
+  - rule: Create privileged pod
+    enabled: true
+  
+  # Database security (for PostgreSQL/Redis containers)
+  - rule: Database program spawned process
+    enabled: true
+  - rule: DB program spawned process
+    enabled: true
+  
+  # Network security
+  - rule: Unexpected network inbound traffic
+    enabled: true
+  - rule: Unexpected network outbound traffic
+    enabled: true
+  
+  # File system security
+  - rule: Write below etc
+    enabled: true
+  - rule: Write below binary dir
+    enabled: true
+  - rule: Write below root
+    enabled: true
+
+# Custom output fields for OctoCode
+output_timeout: 2000
+
+# Falco engine settings
+engine:
+  kind: kmod
+  kmod:
+    buf_size_preset: 4
+    drop_failed_exit: false
