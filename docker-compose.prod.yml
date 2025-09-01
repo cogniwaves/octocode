@@ -1,0 +1,81 @@
+# Production-specific Docker Compose configuration
+# Use with: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up
+
+version: '3.8'
+
+services:
+  oc_app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    environment:
+      - NODE_ENV=production
+    # Remove development ports and volumes
+    ports:
+      - "3000:3000"
+    volumes: []
+    restart: always
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  oc_database:
+    environment:
+      - POSTGRES_DB=octocode_prod
+      - POSTGRES_USER=octocode_user
+      # Use Docker secrets in production
+      - POSTGRES_PASSWORD_FILE=/run/secrets/db_password
+    secrets:
+      - db_password
+    # Remove development port exposure
+    ports: []
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+    # Production PostgreSQL configuration
+    command: >
+      postgres
+      -c max_connections=200
+      -c shared_buffers=256MB
+      -c effective_cache_size=1GB
+      -c maintenance_work_mem=64MB
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=16MB
+      -c default_statistics_target=100
+      -c random_page_cost=1.1
+      -c effective_io_concurrency=200
+
+  oc_redis:
+    restart: always
+    ports: []
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+secrets:
+  db_password:
+    external: true
+
+volumes:
+  oc_postgres_data:
+    driver: local
+  oc_redis_data:
+    driver: local

@@ -1,0 +1,111 @@
+version: '3.8'
+
+services:
+  # PostgreSQL database service
+  oc_database:
+    image: postgres:16-alpine
+    container_name: oc_database
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: octocode_dev
+      POSTGRES_USER: octodev
+      POSTGRES_PASSWORD: octodev_password
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    volumes:
+      - oc_postgres_data:/var/lib/postgresql/data
+      - ./docker/init-scripts:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5432:5432"
+    networks:
+      - oc_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U octodev -d octocode_dev"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Main Next.js application service
+  oc_app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: oc_app
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://octodev:octodev_password@oc_database:5432/octocode_dev?schema=public
+      - NEXTAUTH_URL=http://localhost:3000
+      - NEXTAUTH_SECRET=development-secret-key-change-in-production
+      - SOCKET_IO_PORT=3001
+      - POSTGRES_HOST=oc_database
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=octocode_dev
+      - POSTGRES_USER=octodev
+      - POSTGRES_PASSWORD=octodev_password
+    volumes:
+      # Source code mounting for hot reload
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+      # Prisma client cache
+      - oc_prisma_cache:/app/node_modules/.prisma
+    ports:
+      - "3000:3000"
+      - "3001:3001"
+    networks:
+      - oc_network
+    depends_on:
+      oc_database:
+        condition: service_healthy
+    command: >
+      sh -c "
+        echo 'Waiting for database to be ready...' &&
+        pnpm db:generate &&
+        pnpm db:push &&
+        echo 'Starting development server...' &&
+        pnpm dev
+      "
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Redis service for future caching and session storage
+  oc_redis:
+    image: redis:7-alpine
+    container_name: oc_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - oc_redis_data:/data
+    networks:
+      - oc_network
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+# Named volumes for data persistence
+volumes:
+  oc_postgres_data:
+    driver: local
+    name: oc_postgres_data
+  oc_redis_data:
+    driver: local
+    name: oc_redis_data
+  oc_prisma_cache:
+    driver: local
+    name: oc_prisma_cache
+
+# Custom network for service communication
+networks:
+  oc_network:
+    driver: bridge
+    name: oc_network

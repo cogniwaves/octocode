@@ -1,0 +1,64 @@
+# Development-specific Docker Compose override
+# Use with: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+version: '3.8'
+
+services:
+  oc_app:
+    # Override for development with volume mounts for hot reload
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+      - oc_prisma_cache:/app/node_modules/.prisma
+    environment:
+      # Development-specific environment variables
+      - NODE_ENV=development
+      - CHOKIDAR_USEPOLLING=true
+      - WATCHPACK_POLLING=true
+    # Expose additional ports for debugging
+    ports:
+      - "3000:3000"
+      - "3001:3001"
+      - "9229:9229" # Node.js debugging port
+
+  oc_database:
+    # Development database configuration
+    environment:
+      - POSTGRES_DB=octocode_dev
+      - POSTGRES_USER=octodev
+      - POSTGRES_PASSWORD=octodev_password
+    # Expose database port for external connections
+    ports:
+      - "5432:5432"
+    # Enable query logging for development
+    command: >
+      postgres
+      -c log_statement=all
+      -c log_destination=stderr
+      -c log_min_messages=info
+      -c log_min_duration_statement=0
+
+  # Development tools container (optional)
+  oc_devtools:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: oc_devtools
+    volumes:
+      - .:/app
+    networks:
+      - oc_network
+    profiles:
+      - tools
+    entrypoint: ["tail", "-f", "/dev/null"]  # Keep container running
+    
+volumes:
+  # Development-specific volume configurations
+  oc_postgres_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./docker/volumes/postgres

@@ -1,0 +1,305 @@
+// PostgreSQL-optimized Prisma schema for OctoCode
+// This schema is designed for production use with PostgreSQL
+// Copy this to schema.prisma when using PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model - prepared for multi-tenant evolution
+model User {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email     String   @unique @db.VarChar(255)
+  name      String?  @db.VarChar(255)
+  image     String?  @db.Text
+  
+  // Authentication fields
+  emailVerified DateTime? @db.Timestamptz
+  
+  // Future multi-tenant preparation
+  // organizationId String? @db.Uuid // Will be added in Phase 3
+  // role           UserRole? // Will be added in Phase 2
+  
+  // Timestamps
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+  
+  // Relations
+  accounts  Account[]
+  sessions  Session[]
+  projects  Project[]
+  tasks     Task[]
+  
+  // Indexes for performance
+  @@index([email])
+  @@index([createdAt])
+  @@map("users")
+}
+
+// NextAuth.js required models
+model Account {
+  id                String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String  @db.Uuid
+  type              String  @db.VarChar(50)
+  provider          String  @db.VarChar(50)
+  providerAccountId String  @db.VarChar(255)
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String? @db.VarChar(50)
+  scope             String? @db.Text
+  id_token          String? @db.Text
+  session_state     String? @db.Text
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Indexes
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionToken String   @unique @db.VarChar(255)
+  userId       String   @db.Uuid
+  expires      DateTime @db.Timestamptz
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Indexes
+  @@index([userId])
+  @@index([expires])
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String   @db.VarChar(255)
+  token      String   @unique @db.VarChar(255)
+  expires    DateTime @db.Timestamptz
+
+  @@unique([identifier, token])
+  @@map("verificationtokens")
+}
+
+// Core application models
+model Project {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String   @db.VarChar(255)
+  description String?  @db.Text
+  
+  // User isolation (MVP) - will evolve to organization-based
+  userId      String   @db.Uuid
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Future multi-tenant preparation
+  // organizationId String? @db.Uuid // Will be added in Phase 3
+  
+  // Project settings
+  settings    Json?    @db.JsonB
+  
+  // Timestamps
+  createdAt   DateTime @default(now()) @db.Timestamptz
+  updatedAt   DateTime @updatedAt @db.Timestamptz
+  
+  // Relations
+  tasks       Task[]
+  workflows   Workflow[]
+  
+  // Indexes
+  @@index([userId])
+  @@index([createdAt])
+  @@index([name])
+  @@map("projects")
+}
+
+model Task {
+  id          String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title       String     @db.VarChar(255)
+  description String?    @db.Text
+  
+  // Task classification and routing
+  type        TaskType
+  category    TaskCategory
+  priority    TaskPriority @default(MEDIUM)
+  status      TaskStatus   @default(PENDING)
+  
+  // Agent assignment
+  agentType   AgentType?
+  agentId     String?      @db.VarChar(255)
+  
+  // Task content and results
+  prompt      String       @db.Text
+  input       Json?        @db.JsonB
+  output      Json?        @db.JsonB
+  metadata    Json?        @db.JsonB
+  
+  // Progress tracking
+  progress    Int          @default(0) @db.SmallInt
+  startedAt   DateTime?    @db.Timestamptz
+  completedAt DateTime?    @db.Timestamptz
+  
+  // Error handling
+  error       String?      @db.Text
+  retryCount  Int          @default(0) @db.SmallInt
+  maxRetries  Int          @default(3) @db.SmallInt
+  
+  // Relations
+  userId      String       @db.Uuid
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId   String       @db.Uuid
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  workflowId  String?      @db.Uuid
+  workflow    Workflow?    @relation(fields: [workflowId], references: [id], onDelete: SetNull)
+  
+  // Task dependencies
+  dependsOn   Task[]       @relation("TaskDependencies")
+  dependents  Task[]       @relation("TaskDependencies")
+  
+  // Timestamps
+  createdAt   DateTime     @default(now()) @db.Timestamptz
+  updatedAt   DateTime     @updatedAt @db.Timestamptz
+  
+  // Indexes for performance
+  @@index([userId])
+  @@index([projectId])
+  @@index([workflowId])
+  @@index([status])
+  @@index([type])
+  @@index([priority])
+  @@index([createdAt])
+  @@index([startedAt])
+  @@index([completedAt])
+  @@map("tasks")
+}
+
+model Workflow {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String   @db.VarChar(255)
+  description String?  @db.Text
+  
+  // Workflow orchestration
+  status      WorkflowStatus @default(DRAFT)
+  
+  // Original decomposition context
+  originalPrompt String @db.Text
+  classification Json   @db.JsonB
+  
+  // Progress tracking
+  totalTasks     Int      @default(0)
+  completedTasks Int      @default(0)
+  failedTasks    Int      @default(0)
+  
+  // Timing
+  startedAt      DateTime? @db.Timestamptz
+  completedAt    DateTime? @db.Timestamptz
+  estimatedDuration Int?     // In minutes
+  
+  // Relations
+  projectId   String   @db.Uuid
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks       Task[]
+  
+  // Timestamps
+  createdAt   DateTime @default(now()) @db.Timestamptz
+  updatedAt   DateTime @updatedAt @db.Timestamptz
+  
+  // Indexes
+  @@index([projectId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([startedAt])
+  @@index([completedAt])
+  @@map("workflows")
+}
+
+// File tracking for generated code
+model GeneratedFile {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  filename    String   @db.VarChar(255)
+  path        String   @db.Text
+  content     String   @db.Text
+  language    String?  @db.VarChar(50)
+  framework   String?  @db.VarChar(50)
+  
+  // File metadata
+  size        Int?
+  checksum    String?  @db.VarChar(64)
+  
+  // Relations
+  taskId      String   @db.Uuid
+  projectId   String   @db.Uuid
+  
+  // Timestamps
+  createdAt   DateTime @default(now()) @db.Timestamptz
+  updatedAt   DateTime @updatedAt @db.Timestamptz
+  
+  // Indexes
+  @@index([taskId])
+  @@index([projectId])
+  @@index([filename])
+  @@index([language])
+  @@index([createdAt])
+  @@map("generated_files")
+}
+
+// Enums
+enum TaskType {
+  FRONTEND
+  BACKEND
+  DATABASE
+  DEVOPS
+  TESTING
+  DOCUMENTATION
+  REVIEW
+}
+
+enum TaskCategory {
+  COMPONENT_CREATION
+  API_DEVELOPMENT
+  DATABASE_SCHEMA
+  DEPLOYMENT
+  BUG_FIX
+  FEATURE_IMPLEMENTATION
+  CODE_REVIEW
+  OPTIMIZATION
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  CANCELLED
+  BLOCKED
+}
+
+enum AgentType {
+  MASTER_ORCHESTRATOR
+  DECOMPOSITION_AGENT
+  FRONTEND_SPECIALIST
+  BACKEND_SPECIALIST
+  DEVOPS_SPECIALIST
+  DATABASE_SPECIALIST
+  TESTING_SPECIALIST
+  CODE_REVIEWER
+}
+
+enum WorkflowStatus {
+  DRAFT
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  CANCELLED
+}

@@ -1,0 +1,316 @@
+/* Material Design 3 Floating Action Button Component Styles */
+
+.fab {
+  /* Base FAB implementation */
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 56px;
+  min-width: 56px;
+  padding: 16px;
+  background-color: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+  border: none;
+  border-radius: var(--md-sys-shape-corner-large);
+  box-shadow: var(--md-sys-elevation-level3);
+  cursor: pointer;
+  user-select: none;
+  touch-action: manipulation;
+  transition: all var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+  overflow: hidden;
+  z-index: 0;
+  text-decoration: none;
+}
+
+.fab::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: currentColor;
+  opacity: 0;
+  transition: opacity var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+  pointer-events: none;
+  border-radius: inherit;
+  z-index: -1;
+}
+
+.fab:hover::before {
+  opacity: var(--md-sys-state-hover-state-layer-opacity);
+}
+
+.fab:hover:not(:disabled) {
+  box-shadow: var(--md-sys-elevation-level4);
+}
+
+.fab:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+  box-shadow: var(--md-sys-elevation-level3);
+}
+
+.fab:focus-visible::before {
+  opacity: var(--md-sys-state-focus-state-layer-opacity);
+}
+
+.fab:active {
+  box-shadow: var(--md-sys-elevation-level3);
+}
+
+.fab:active::before {
+  opacity: var(--md-sys-state-pressed-state-layer-opacity);
+}
+
+.fab:disabled {
+  background-color: var(--md-sys-color-on-surface);
+  color: var(--md-sys-color-on-surface);
+  opacity: var(--md-sys-opacity-disabled);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.fab:disabled::before {
+  opacity: 0;
+}
+
+/* FAB Variants */
+.surface {
+  background-color: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-primary);
+}
+
+.secondary {
+  background-color: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+}
+
+.tertiary {
+  background-color: var(--md-sys-color-tertiary-container);
+  color: var(--md-sys-color-on-tertiary-container);
+}
+
+/* FAB Sizes */
+.small {
+  min-height: 40px;
+  min-width: 40px;
+  padding: 8px;
+  border-radius: var(--md-sys-shape-corner-medium);
+}
+
+.large {
+  min-height: 96px;
+  min-width: 96px;
+  padding: 30px;
+  border-radius: var(--md-sys-shape-corner-extra-large);
+}
+
+.extended {
+  min-width: auto;
+  padding: 16px 20px;
+  border-radius: var(--md-sys-shape-corner-large);
+}
+
+/* Icon Support */
+.icon {
+  width: var(--md-sys-size-icon-medium);
+  height: var(--md-sys-size-icon-medium);
+  flex-shrink: 0;
+}
+
+.small .icon {
+  width: var(--md-sys-size-icon-small);
+  height: var(--md-sys-size-icon-small);
+}
+
+.large .icon {
+  width: var(--md-sys-size-icon-large);
+  height: var(--md-sys-size-icon-large);
+}
+
+/* Extended FAB Label */
+.label {
+  font-family: var(--md-sys-typescale-label-large-font);
+  font-size: var(--md-sys-typescale-label-large-size);
+  font-weight: var(--md-sys-typescale-label-large-weight);
+  line-height: var(--md-sys-typescale-label-large-line-height);
+  letter-spacing: var(--md-sys-typescale-label-large-tracking);
+  margin-left: var(--md-sys-spacing-sm);
+  white-space: nowrap;
+}
+
+/* Loading State */
+.loading {
+  pointer-events: none;
+}
+
+.loading .icon {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Position Variants */
+.fixed {
+  position: fixed;
+  z-index: 1000;
+}
+
+.bottomRight {
+  bottom: var(--md-sys-spacing-md);
+  right: var(--md-sys-spacing-md);
+}
+
+.bottomLeft {
+  bottom: var(--md-sys-spacing-md);
+  left: var(--md-sys-spacing-md);
+}
+
+.bottomCenter {
+  bottom: var(--md-sys-spacing-md);
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.topRight {
+  top: var(--md-sys-spacing-md);
+  right: var(--md-sys-spacing-md);
+}
+
+.topLeft {
+  top: var(--md-sys-spacing-md);
+  left: var(--md-sys-spacing-md);
+}
+
+.topCenter {
+  top: var(--md-sys-spacing-md);
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+  .fab {
+    min-height: 48px;
+    min-width: 48px;
+    padding: 12px;
+  }
+  
+  .small {
+    min-height: 36px;
+    min-width: 36px;
+    padding: 6px;
+  }
+  
+  .large {
+    min-height: 80px;
+    min-width: 80px;
+    padding: 24px;
+  }
+  
+  .bottomRight,
+  .bottomLeft {
+    bottom: var(--md-sys-spacing-sm);
+  }
+  
+  .bottomRight {
+    right: var(--md-sys-spacing-sm);
+  }
+  
+  .bottomLeft {
+    left: var(--md-sys-spacing-sm);
+  }
+}
+
+/* High Contrast Mode */
+@media (prefers-contrast: high) {
+  .fab {
+    border: 2px solid currentColor;
+  }
+  
+  .fab:focus-visible {
+    outline-width: 3px;
+  }
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .fab {
+    transition: none;
+  }
+  
+  .fab::before {
+    transition: none;
+  }
+  
+  .loading .icon {
+    animation: none;
+  }
+}
+
+/* Animation for Extended FAB */
+@keyframes fabExtend {
+  from {
+    width: 56px;
+  }
+  to {
+    width: auto;
+  }
+}
+
+@keyframes fabCollapse {
+  from {
+    width: auto;
+  }
+  to {
+    width: 56px;
+  }
+}
+
+.extended.animateExtend {
+  animation: fabExtend var(--md-sys-motion-duration-medium2) var(--md-sys-motion-easing-emphasized);
+}
+
+.extended.animateCollapse {
+  animation: fabCollapse var(--md-sys-motion-duration-medium2) var(--md-sys-motion-easing-emphasized);
+}
+
+/* Badge Support */
+.badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background-color: var(--md-sys-color-error);
+  color: var(--md-sys-color-on-error);
+  border-radius: var(--md-sys-shape-corner-full);
+  min-width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--md-sys-typescale-label-small-font);
+  font-size: var(--md-sys-typescale-label-small-size);
+  font-weight: var(--md-sys-typescale-label-small-weight);
+  line-height: var(--md-sys-typescale-label-small-line-height);
+  letter-spacing: var(--md-sys-typescale-label-small-tracking);
+  padding: 0 4px;
+  z-index: 1;
+}
+
+.badge:empty {
+  width: 12px;
+  height: 12px;
+  min-width: 12px;
+  padding: 0;
+  top: 6px;
+  right: 6px;
+}

@@ -1,0 +1,531 @@
+/* Material Design 3 Utility Classes */
+/* These utilities complement the global styles and provide additional helper classes */
+
+/* =============================================
+   LAYOUT UTILITIES
+   ============================================= */
+
+/* Container Utilities */
+.md-container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 var(--md-sys-spacing-md);
+}
+
+.md-container--narrow {
+  max-width: 800px;
+}
+
+.md-container--wide {
+  max-width: 1400px;
+}
+
+.md-container--full {
+  max-width: none;
+}
+
+/* Grid System */
+.md-grid {
+  display: grid;
+  gap: var(--md-sys-spacing-md);
+}
+
+.md-grid--cols-1 { grid-template-columns: 1fr; }
+.md-grid--cols-2 { grid-template-columns: repeat(2, 1fr); }
+.md-grid--cols-3 { grid-template-columns: repeat(3, 1fr); }
+.md-grid--cols-4 { grid-template-columns: repeat(4, 1fr); }
+.md-grid--cols-5 { grid-template-columns: repeat(5, 1fr); }
+.md-grid--cols-6 { grid-template-columns: repeat(6, 1fr); }
+.md-grid--cols-12 { grid-template-columns: repeat(12, 1fr); }
+
+.md-grid--gap-xs { gap: var(--md-sys-spacing-xs); }
+.md-grid--gap-sm { gap: var(--md-sys-spacing-sm); }
+.md-grid--gap-md { gap: var(--md-sys-spacing-md); }
+.md-grid--gap-lg { gap: var(--md-sys-spacing-lg); }
+.md-grid--gap-xl { gap: var(--md-sys-spacing-xl); }
+
+/* Flexbox Utilities */
+.md-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--md-sys-spacing-md);
+}
+
+.md-stack--row {
+  flex-direction: row;
+}
+
+.md-stack--gap-xs { gap: var(--md-sys-spacing-xs); }
+.md-stack--gap-sm { gap: var(--md-sys-spacing-sm); }
+.md-stack--gap-md { gap: var(--md-sys-spacing-md); }
+.md-stack--gap-lg { gap: var(--md-sys-spacing-lg); }
+.md-stack--gap-xl { gap: var(--md-sys-spacing-xl); }
+
+/* Cluster Layout */
+.md-cluster {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--md-sys-spacing-md);
+  align-items: center;
+}
+
+.md-cluster--start { justify-content: flex-start; }
+.md-cluster--center { justify-content: center; }
+.md-cluster--end { justify-content: flex-end; }
+.md-cluster--between { justify-content: space-between; }
+.md-cluster--around { justify-content: space-around; }
+
+/* =============================================
+   COMPONENT UTILITIES
+   ============================================= */
+
+/* Interactive States */
+.md-interactive {
+  cursor: pointer;
+  user-select: none;
+  touch-action: manipulation;
+  transition: all var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+}
+
+.md-interactive:disabled,
+.md-interactive[aria-disabled="true"] {
+  cursor: not-allowed;
+  pointer-events: none;
+  opacity: var(--md-sys-opacity-disabled);
+}
+
+/* Focus Ring */
+.md-focus-ring:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+  border-radius: var(--md-sys-shape-corner-extra-small);
+}
+
+/* Loading Indicator */
+.md-loading {
+  position: relative;
+}
+
+.md-loading::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--md-sys-color-outline-variant);
+  border-top: 2px solid var(--md-sys-color-primary);
+  border-radius: 50%;
+  animation: md-spin 1s linear infinite;
+}
+
+@keyframes md-spin {
+  0% { transform: translate(-50%, -50%) rotate(0deg); }
+  100% { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+/* Skeleton Loading */
+.md-skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--md-sys-color-surface-variant) 25%,
+    var(--md-sys-color-surface-container) 50%,
+    var(--md-sys-color-surface-variant) 75%
+  );
+  background-size: 200% 100%;
+  animation: md-skeleton 1.5s ease-in-out infinite;
+  border-radius: var(--md-sys-shape-corner-extra-small);
+}
+
+@keyframes md-skeleton {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* =============================================
+   ANIMATION UTILITIES
+   ============================================= */
+
+/* Fade Animations */
+.md-fade-in {
+  animation: md-fade-in var(--md-sys-motion-duration-medium2) var(--md-sys-motion-easing-standard);
+}
+
+.md-fade-out {
+  animation: md-fade-out var(--md-sys-motion-duration-medium2) var(--md-sys-motion-easing-standard);
+}
+
+@keyframes md-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes md-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* Slide Animations */
+.md-slide-up {
+  animation: md-slide-up var(--md-sys-motion-duration-medium3) var(--md-sys-motion-easing-emphasized);
+}
+
+.md-slide-down {
+  animation: md-slide-down var(--md-sys-motion-duration-medium3) var(--md-sys-motion-easing-emphasized);
+}
+
+.md-slide-left {
+  animation: md-slide-left var(--md-sys-motion-duration-medium3) var(--md-sys-motion-easing-emphasized);
+}
+
+.md-slide-right {
+  animation: md-slide-right var(--md-sys-motion-duration-medium3) var(--md-sys-motion-easing-emphasized);
+}
+
+@keyframes md-slide-up {
+  from { 
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to { 
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes md-slide-down {
+  from { 
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to { 
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes md-slide-left {
+  from { 
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to { 
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes md-slide-right {
+  from { 
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to { 
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Scale Animations */
+.md-scale-in {
+  animation: md-scale-in var(--md-sys-motion-duration-medium2) var(--md-sys-motion-easing-emphasized);
+}
+
+.md-scale-out {
+  animation: md-scale-out var(--md-sys-motion-duration-medium2) var(--md-sys-motion-easing-emphasized);
+}
+
+@keyframes md-scale-in {
+  from { 
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to { 
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes md-scale-out {
+  from { 
+    opacity: 1;
+    transform: scale(1);
+  }
+  to { 
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+
+/* =============================================
+   FORM UTILITIES
+   ============================================= */
+
+/* Form Layout */
+.md-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--md-sys-spacing-lg);
+}
+
+.md-form-row {
+  display: flex;
+  gap: var(--md-sys-spacing-md);
+  align-items: flex-start;
+}
+
+.md-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--md-sys-spacing-sm);
+  flex: 1;
+}
+
+/* Field States */
+.md-field {
+  position: relative;
+}
+
+.md-field--error {
+  --field-color: var(--md-sys-color-error);
+}
+
+.md-field--success {
+  --field-color: var(--md-sys-color-tertiary);
+}
+
+.md-field--disabled {
+  opacity: var(--md-sys-opacity-disabled);
+  pointer-events: none;
+}
+
+/* Labels */
+.md-label {
+  font-family: var(--md-sys-typescale-body-small-font);
+  font-size: var(--md-sys-typescale-body-small-size);
+  font-weight: var(--md-sys-typescale-body-small-weight);
+  line-height: var(--md-sys-typescale-body-small-line-height);
+  letter-spacing: var(--md-sys-typescale-body-small-tracking);
+  color: var(--md-sys-color-on-surface-variant);
+  margin-bottom: var(--md-sys-spacing-xs);
+}
+
+.md-label--required::after {
+  content: ' *';
+  color: var(--md-sys-color-error);
+}
+
+/* Helper Text */
+.md-helper-text {
+  font-family: var(--md-sys-typescale-body-small-font);
+  font-size: var(--md-sys-typescale-body-small-size);
+  font-weight: var(--md-sys-typescale-body-small-weight);
+  line-height: var(--md-sys-typescale-body-small-line-height);
+  letter-spacing: var(--md-sys-typescale-body-small-tracking);
+  color: var(--md-sys-color-on-surface-variant);
+  margin-top: var(--md-sys-spacing-xs);
+}
+
+.md-helper-text--error {
+  color: var(--md-sys-color-error);
+}
+
+.md-helper-text--success {
+  color: var(--md-sys-color-tertiary);
+}
+
+/* =============================================
+   ACCESSIBILITY UTILITIES
+   ============================================= */
+
+/* Screen Reader Only */
+.md-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Skip Links */
+.md-skip-link {
+  position: absolute;
+  top: -40px;
+  left: var(--md-sys-spacing-md);
+  background-color: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+  padding: var(--md-sys-spacing-sm) var(--md-sys-spacing-md);
+  border-radius: var(--md-sys-shape-corner-small);
+  text-decoration: none;
+  font-weight: 500;
+  z-index: 1000;
+  transition: top var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+}
+
+.md-skip-link:focus {
+  top: var(--md-sys-spacing-md);
+}
+
+/* Focus Management */
+.md-focus-trap {
+  /* Used for modal/dialog focus trapping */
+}
+
+/* High Contrast Support */
+@media (prefers-contrast: high) {
+  .md-interactive:focus-visible {
+    outline-width: 3px;
+  }
+  
+  .md-skeleton {
+    background: repeating-linear-gradient(
+      90deg,
+      var(--md-sys-color-outline-variant) 0px,
+      var(--md-sys-color-outline-variant) 10px,
+      transparent 10px,
+      transparent 20px
+    );
+  }
+}
+
+/* =============================================
+   RESPONSIVE UTILITIES
+   ============================================= */
+
+/* Breakpoint-based visibility */
+.md-hidden-mobile {
+  display: block;
+}
+
+.md-hidden-tablet {
+  display: block;
+}
+
+.md-hidden-desktop {
+  display: block;
+}
+
+.md-show-mobile {
+  display: none;
+}
+
+.md-show-tablet {
+  display: none;
+}
+
+.md-show-desktop {
+  display: none;
+}
+
+@media (max-width: 599px) {
+  .md-hidden-mobile {
+    display: none;
+  }
+  
+  .md-show-mobile {
+    display: block;
+  }
+  
+  .md-form-row {
+    flex-direction: column;
+  }
+  
+  .md-cluster {
+    justify-content: center;
+  }
+  
+  .md-container {
+    padding: 0 var(--md-sys-spacing-sm);
+  }
+}
+
+@media (min-width: 600px) and (max-width: 1023px) {
+  .md-hidden-tablet {
+    display: none;
+  }
+  
+  .md-show-tablet {
+    display: block;
+  }
+}
+
+@media (min-width: 1024px) {
+  .md-hidden-desktop {
+    display: none;
+  }
+  
+  .md-show-desktop {
+    display: block;
+  }
+}
+
+/* =============================================
+   PRINT UTILITIES
+   ============================================= */
+
+@media print {
+  .md-no-print {
+    display: none !important;
+  }
+  
+  .md-print-only {
+    display: block !important;
+  }
+  
+  .md-interactive {
+    cursor: default !important;
+  }
+  
+  .md-loading::after {
+    display: none;
+  }
+}
+
+/* =============================================
+   DARK MODE UTILITIES
+   ============================================= */
+
+/* Theme-specific utilities that only apply in certain themes */
+[data-theme="dark"] .md-light-only {
+  display: none;
+}
+
+[data-theme="light"] .md-dark-only {
+  display: none;
+}
+
+/* =============================================
+   MOTION PREFERENCES
+   ============================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  .md-fade-in,
+  .md-fade-out,
+  .md-slide-up,
+  .md-slide-down,
+  .md-slide-left,
+  .md-slide-right,
+  .md-scale-in,
+  .md-scale-out {
+    animation: none;
+  }
+  
+  .md-interactive {
+    transition: none;
+  }
+  
+  .md-loading::after {
+    animation: none;
+  }
+  
+  .md-skeleton {
+    animation: none;
+    background: var(--md-sys-color-surface-variant);
+  }
+}

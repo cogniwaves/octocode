@@ -1,0 +1,270 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// User model - prepared for multi-tenant evolution
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  image     String?
+  
+  // Authentication fields
+  emailVerified DateTime?
+  
+  // Future multi-tenant preparation
+  // organizationId String? // Will be added in Phase 3
+  // role           UserRole? // Will be added in Phase 2
+  
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  accounts  Account[]
+  sessions  Session[]
+  projects  Project[]
+  tasks     Task[]
+  
+  @@map("users")
+}
+
+// NextAuth.js required models
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verificationtokens")
+}
+
+// Core application models
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  
+  // User isolation (MVP) - will evolve to organization-based
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Future multi-tenant preparation
+  // organizationId String? // Will be added in Phase 3
+  
+  // Project settings
+  settings    Json?    // Store project-specific configurations
+  
+  // Timestamps
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  tasks       Task[]
+  workflows   Workflow[]
+  
+  @@map("projects")
+}
+
+model Task {
+  id          String     @id @default(cuid())
+  title       String
+  description String?
+  
+  // Task classification and routing
+  type        TaskType
+  category    TaskCategory
+  priority    TaskPriority @default(MEDIUM)
+  status      TaskStatus   @default(PENDING)
+  
+  // Agent assignment
+  agentType   AgentType?
+  agentId     String?      // For tracking which agent instance handled this
+  
+  // Task content and results
+  prompt      String       // Original user prompt or decomposed instruction
+  input       Json?        // Input data/parameters for the task
+  output      Json?        // Generated code, files, or results
+  metadata    Json?        // Agent-specific metadata, progress tracking
+  
+  // Progress tracking
+  progress    Int          @default(0) // 0-100 percentage
+  startedAt   DateTime?
+  completedAt DateTime?
+  
+  // Error handling
+  error       String?
+  retryCount  Int          @default(0)
+  maxRetries  Int          @default(3)
+  
+  // Relations
+  userId      String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId   String
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  workflowId  String?
+  workflow    Workflow?    @relation(fields: [workflowId], references: [id], onDelete: SetNull)
+  
+  // Task dependencies
+  dependsOn   Task[]       @relation("TaskDependencies")
+  dependents  Task[]       @relation("TaskDependencies")
+  
+  // Timestamps
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  
+  @@map("tasks")
+}
+
+model Workflow {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  
+  // Workflow orchestration
+  status      WorkflowStatus @default(DRAFT)
+  
+  // Original decomposition context
+  originalPrompt String
+  classification Json   // Prompt classification results
+  
+  // Progress tracking
+  totalTasks     Int      @default(0)
+  completedTasks Int      @default(0)
+  failedTasks    Int      @default(0)
+  
+  // Timing
+  startedAt      DateTime?
+  completedAt    DateTime?
+  estimatedDuration Int?   // In minutes
+  
+  // Relations
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks       Task[]
+  
+  // Timestamps
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("workflows")
+}
+
+// File tracking for generated code
+model GeneratedFile {
+  id          String   @id @default(cuid())
+  filename    String
+  path        String
+  content     String
+  language    String?  // Programming language
+  framework   String?  // Framework context (e.g., "nextjs", "react")
+  
+  // File metadata
+  size        Int?     // File size in bytes
+  checksum    String?  // For change detection
+  
+  // Relations
+  taskId      String
+  projectId   String
+  
+  // Timestamps
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("generated_files")
+}
+
+// Enums
+enum TaskType {
+  FRONTEND
+  BACKEND
+  DATABASE
+  DEVOPS
+  TESTING
+  DOCUMENTATION
+  REVIEW
+}
+
+enum TaskCategory {
+  COMPONENT_CREATION
+  API_DEVELOPMENT
+  DATABASE_SCHEMA
+  DEPLOYMENT
+  BUG_FIX
+  FEATURE_IMPLEMENTATION
+  CODE_REVIEW
+  OPTIMIZATION
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  CANCELLED
+  BLOCKED
+}
+
+enum AgentType {
+  MASTER_ORCHESTRATOR
+  DECOMPOSITION_AGENT
+  FRONTEND_SPECIALIST
+  BACKEND_SPECIALIST
+  DEVOPS_SPECIALIST
+  DATABASE_SPECIALIST
+  TESTING_SPECIALIST
+  CODE_REVIEWER
+}
+
+enum WorkflowStatus {
+  DRAFT
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  CANCELLED
+}
